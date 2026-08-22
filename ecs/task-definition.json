@@ -1,0 +1,64 @@
+{
+  "family": "acme-portal-static-task",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "acme-portal-static",
+      "image": "{{IMAGE_URI}}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "JAVA_OPTS",
+          "value": "-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8 -Duser.timezone=UTC"
+        },
+        {
+          "name": "HTML_ROOT",
+          "value": "/app"
+        },
+        {
+          "name": "CONTACT_API_URL",
+          "value": ""
+        },
+        {
+          "name": "APP_BASE_URL",
+          "value": ""
+        },
+        {
+          "name": "CDN_BASE_URL",
+          "value": ""
+        },
+        {
+          "name": "API_BASE_URL",
+          "value": ""
+        },
+        {
+          "name": "ADMIN_CONSOLE_URL",
+          "value": ""
+        },
+        {
+          "name": "ENV_NAME",
+          "value": "production"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/acme-portal-static",
+          "awslogs-region": "{{AWS_REGION}}",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

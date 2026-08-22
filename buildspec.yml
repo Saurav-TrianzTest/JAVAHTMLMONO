@@ -1,0 +1,121 @@
+version: 0.2
+
+# AWS CodeBuild buildspec for acme-portal-static
+# Enforces HTML minification before every ECS Fargate deployment.
+# Rule cz-html-1009: Unminified HTML in Production Containers
+# All HTML files are minified in the 'minify_html' phase so that the
+# container image pushed to ECR never contains unminified markup.
+# CodePipeline gates prevent promotion of any image that skips this phase.
+#
+# Rule cz-html-1012: Build Artifacts Included in HTML Container
+# An image-size validation stage is added after the Docker build to block
+# deployment of bloated images that contain source maps, build logs, or other
+# build artefacts.  The pipeline fails fast if the compressed image size
+# exceeds the configured threshold (IMAGE_SIZE_LIMIT_MB, default 150 MB).
+# This enforces the ECS Fargate Deployment Pipeline with Image Size Validation
+# via CodePipeline remediation strategy.
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: "us-east-1"
+    ECR_REPO_NAME: "acme-portal-static"
+    IMAGE_TAG: "latest"
+    # cz-html-1012: Maximum allowed compressed Docker image size in MB.
+    # Adjust this threshold to match your production baseline.
+    # A bloated image containing source maps / build logs will exceed this limit
+    # and the pipeline will fail before the image is pushed to ECR.
+    IMAGE_SIZE_LIMIT_MB: "150"
+  parameter-store:
+    ECR_REGISTRY: "/acme-portal/ecr-registry"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+      nodejs: 18
+    commands:
+      - echo "=== Installing build dependencies ==="
+      - npm install -g html-minifier-terser
+      - echo "html-minifier-terser version $(html-minifier-terser --version)"
+
+  pre_build:
+    commands:
+      - echo "=== Pre-build phase: login to ECR ==="
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_URI="$ECR_REGISTRY/$ECR_REPO_NAME:$COMMIT_HASH"
+      - echo "Target image URI $IMAGE_URI"
+
+  build:
+    commands:
+      - echo "=== Build phase: Maven compile ==="
+      - mvn --batch-mode --no-transfer-progress clean package -DskipTests
+
+      - echo "=== HTML Minification phase (cz-html-1009) ==="
+      # Minify all HTML files in-place: remove whitespace, strip HTML comments,
+      # collapse boolean attributes, and remove optional tags.
+      # This enforces minimal image size and faster ECS Fargate pod startup.
+      - |
+        find . -name "*.html" \
+          ! -path "./.git/*" \
+          ! -path "./target/*" \
+          ! -path "./node_modules/*" | while read -r html_file; do
+            echo "  Minifying: $html_file"
+            html-minifier-terser \
+              --collapse-whitespace \
+              --remove-comments \
+              --remove-optional-tags \
+              --remove-redundant-attributes \
+              --remove-script-type-attributes \
+              --remove-tag-whitespace \
+              --use-short-doctype \
+              --minify-css true \
+              --minify-js true \
+              --output "$html_file" \
+              "$html_file"
+        done
+      - echo "=== HTML minification complete ==="
+
+      - echo "=== Building Docker image ==="
+      - docker build -t $IMAGE_URI .
+      - docker tag $IMAGE_URI $ECR_REGISTRY/$ECR_REPO_NAME:$IMAGE_TAG
+
+      # ── cz-html-1012: Image Size Validation ──────────────────────────────────
+      # Block deployment of bloated images that contain source maps, build logs,
+      # or other build artefacts.  The compressed image size is compared against
+      # IMAGE_SIZE_LIMIT_MB.  If the limit is exceeded the pipeline fails here,
+      # before the image is pushed to ECR, preventing bloated images from ever
+      # reaching ECS Fargate.
+      - echo "=== Image size validation (cz-html-1012) ==="
+      - |
+        IMAGE_SIZE_BYTES=$(docker image inspect "$IMAGE_URI" --format='{{.Size}}')
+        IMAGE_SIZE_MB=$(echo "scale=2; $IMAGE_SIZE_BYTES / 1048576" | bc)
+        echo "  Uncompressed image size: ${IMAGE_SIZE_MB} MB  (limit: ${IMAGE_SIZE_LIMIT_MB} MB)"
+        if [ "$(echo "$IMAGE_SIZE_MB > $IMAGE_SIZE_LIMIT_MB" | bc)" -eq 1 ]; then
+          echo "ERROR: Image size ${IMAGE_SIZE_MB} MB exceeds the allowed limit of ${IMAGE_SIZE_LIMIT_MB} MB."
+          echo "       The image likely contains build artefacts (source maps, build logs, etc.)."
+          echo "       Verify that .dockerignore excludes *.map, build-info.html, and build logs."
+          echo "       Deployment blocked. (cz-html-1012)"
+          exit 1
+        fi
+        echo "  Image size validation passed: ${IMAGE_SIZE_MB} MB <= ${IMAGE_SIZE_LIMIT_MB} MB"
+      # ── End cz-html-1012 ─────────────────────────────────────────────────────
+
+  post_build:
+    commands:
+      - echo "=== Post-build phase: push image to ECR ==="
+      - docker push $IMAGE_URI
+      - docker push $ECR_REGISTRY/$ECR_REPO_NAME:$IMAGE_TAG
+      - echo "=== Writing imagedefinitions.json for CodePipeline ECS deploy action ==="
+      - printf '[{"name":"acme-portal-static","imageUri":"%s"}]' "$IMAGE_URI" > imagedefinitions.json
+      - cat imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
+  discard-paths: yes
+
+cache:
+  paths:
+    - "/root/.m2/**/*"
+    - "/root/.npm/**/*"

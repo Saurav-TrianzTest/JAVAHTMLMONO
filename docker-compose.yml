@@ -1,0 +1,52 @@
+version: "3.9"
+
+# =============================================================================
+# docker-compose.yml – acme-portal-static (JAVAHTMLGIT)
+#
+# Application-only compose file. External services (databases, message queues,
+# etc.) are intentionally excluded. Use environment variables to connect to
+# external services.
+# =============================================================================
+
+services:
+  acme-portal-static:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: acme-portal-static:latest
+    container_name: acme-portal-static
+    ports:
+      - "8080:8080"
+    environment:
+      # JVM tuning
+      JAVA_OPTS: "-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UnlockExperimentalVMOptions -Dfile.encoding=UTF-8 -Duser.timezone=UTC"
+      # HTML root for entrypoint path normalization
+      HTML_ROOT: "/app"
+      # cz-html-1003: Contact form API endpoint (set to your actual API URL)
+      CONTACT_API_URL: "${CONTACT_API_URL:-}"
+      # cz-html-1007: Application base URL (set to your actual app URL)
+      APP_BASE_URL: "${APP_BASE_URL:-}"
+      # cz-html-1008: CDN base URL for static assets (set to your CloudFront URL)
+      CDN_BASE_URL: "${CDN_BASE_URL:-}"
+      # cz-html-1011: Runtime config environment variables
+      API_BASE_URL: "${API_BASE_URL:-}"
+      ADMIN_CONSOLE_URL: "${ADMIN_CONSOLE_URL:-}"
+      ENV_NAME: "${ENV_NAME:-local}"
+    volumes:
+      # Persist application logs
+      - ./logs:/app/logs
+      # Mount config directory (simulates SSM sidecar volume in local dev)
+      - ./config:/app/config
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  app-network:
+    driver: bridge

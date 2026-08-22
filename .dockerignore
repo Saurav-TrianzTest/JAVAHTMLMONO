@@ -1,0 +1,70 @@
+# =============================================================================
+# .dockerignore – acme-portal-static (JAVAHTMLGIT)
+#
+# Remediation: cz-html-1010 – Development HTML Files in Production Container
+#              cz-html-1012 – Build Artifacts Included in HTML Container
+#
+# Excludes development/test HTML files, build artifacts, and other
+# non-production artefacts from the Docker build context.
+# =============================================================================
+
+# ── Development & test HTML files (cz-html-1010) ─────────────────────────────
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+# cz-html-1012: Build artifact HTML files must not be included in production image
+build-info.html
+
+# ── Build artefacts ───────────────────────────────────────────────────────────
+target/
+*.class
+# cz-html-1012: Exclude source maps and build logs
+*.map
+*.js.map
+*.css.map
+*.ts.map
+build.log
+build-*.log
+*.build.log
+
+# ── Maven wrapper files (NEVER used in Docker – system mvn is used instead) ──
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Gradle wrapper files (excluded for completeness) ─────────────────────────
+gradlew
+gradlew.bat
+gradle/wrapper/
+
+# ── Version-control metadata ──────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / editor files ────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── CI / local tooling ────────────────────────────────────────────────────────
+.github/
+buildspec.yml
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+*.md
+README*
+docs/
+
+# ── Scripts (not needed in image) ─────────────────────────────────────────────
+scripts/
