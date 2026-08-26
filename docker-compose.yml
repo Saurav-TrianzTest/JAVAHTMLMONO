@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  acme-portal-static:
+    image: acme-portal-static:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acme-portal-static
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=UTC
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+      - API_URL=${API_URL:-http://localhost:8080}
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

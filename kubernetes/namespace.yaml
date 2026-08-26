@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acme-portal-static
+  labels:
+    name: acme-portal-static
+    app: acme-portal-static
