@@ -1,0 +1,86 @@
+# =============================================================================
+# .dockerignore — Exclude development/test HTML files, build artifacts,
+# source maps, build logs, and Maven wrapper files from the Docker build
+# context for EKS/ECR deployments.
+# =============================================================================
+
+# ── Maven wrapper (NEVER used inside Docker — system mvn is used) ─────────────
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Development & test HTML files ────────────────────────────────────────────
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+*.debug.html
+
+# ── Build-info / diagnostic pages (not needed at runtime) ────────────────────
+build-info.html
+
+# ── Version control ──────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── IDE / editor artefacts ───────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Maven build output (copied explicitly in Dockerfile) ─────────────────────
+target/
+
+# ── Documentation ────────────────────────────────────────────────────────────
+README.md
+docs/
+*.md
+
+# ── Local environment / secrets ──────────────────────────────────────────────
+.env
+.env.*
+*.local
+
+# ── Source maps (build artifacts — expose source code, bloat image) ──────────
+**/*.map
+assets/js/*.map
+assets/css/*.map
+*.js.map
+*.css.map
+*.ts.map
+
+# ── Build logs and reports (build artifacts — bloat image) ───────────────────
+*.log
+build-logs/
+build-reports/
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Node / front-end build artefacts ─────────────────────────────────────────
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.output/
+coverage/
+.nyc_output/
+
+# ── Webpack / bundler stats & manifests ──────────────────────────────────────
+webpack-stats.json
+bundle-stats.json
+stats.json

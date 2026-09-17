@@ -6,7 +6,40 @@
   <title>Acme App</title>
 </head>
 <body>
-  <div id="root"></div>
+  <!-- SSR: server-rendered application root for EKS/Kubernetes SSR pod compatibility -->
+  <!-- noscript: SSR fallback injected via Kubernetes ConfigMap for EKS pod SSR crawling and JavaScript-disabled clients -->
+  <noscript>
+    <div id="noscript-fallback" role="main">
+      <header role="banner">
+        <nav role="navigation" aria-label="Main navigation">
+          <a href="/">Acme App</a>
+        </nav>
+      </header>
+      <main>
+        <h1>Acme App</h1>
+        <p>This application requires JavaScript to run interactively. Please enable JavaScript in your browser, or contact your administrator.</p>
+        <p>If you are a search engine or SSR crawler, the server-rendered content is available above.</p>
+      </main>
+      <footer role="contentinfo"><p>&copy; Acme App</p></footer>
+    </div>
+  </noscript>
+  <div id="root">
+    <div id="ssr-app" aria-live="polite">
+      <header class="app-header" role="banner">
+        <nav class="app-nav" role="navigation" aria-label="Main navigation">
+          <a href="/" class="nav-brand">Acme App</a>
+        </nav>
+      </header>
+      <main class="app-main" role="main" id="main-content">
+        <section class="app-loading" aria-label="Application loading">
+          <p>Loading application&hellip;</p>
+        </section>
+      </main>
+      <footer class="app-footer" role="contentinfo">
+        <p>&copy; Acme App</p>
+      </footer>
+    </div>
+  </div>
   <script src="assets/js/bundle.js"></script>
 </body>
 </html>

@@ -4,28 +4,41 @@
     <meta charset="utf-8">
     <!-- Legacy dashboard page migrated from on-prem IIS. Do not minify by hand. -->
     <title>Operations Dashboard</title>
+    <!-- Runtime config injection point: populated by init container from Kubernetes ConfigMap at pod startup -->
+    <script>
+      window.__ENV__ = window.__ENV__ || {};
+    </script>
     <!-- Windows-style asset path kept from the original on-prem build -->
-    <link rel="stylesheet" href="assets\css\dashboard.css">
+    <link rel="stylesheet" href="assets/css/dashboard.css">
     <link rel="stylesheet" href="https://static.acme-corp.com/css/grid.css">
 </head>
 <body>
     <!-- Header banner served from the on-prem file share -->
     <header>
-        <img src="/var/www/html/assets/img/banner.png" alt="Banner">
+        <img src="assets/img/banner.png" alt="Banner">
     </header>
 
     <main>
-        <!-- Hardcoded production environment link -->
-        <a href="https://app-prod.acme-corp.com/portal/admin">Open Admin Console</a>
+        <!-- URL injected at runtime by init container from Kubernetes ConfigMap (key: ADMIN_CONSOLE_URL) -->
+        <a href="__ADMIN_CONSOLE_URL__">Open Admin Console</a>
 
         <!-- Windows backslash path for an icon -->
         <img src="images/icons/refresh.png" alt="refresh">
 
-        <!-- Server-stamped build time embedded directly in static markup -->
-        <span class="build-info">Report generated: 2026-06-17 14:32:05 UTC</span>
+        <!-- Timestamp rendered client-side to prevent SSR/hydration mismatches in EKS pods -->
+        <span class="build-info" id="report-timestamp">Report generated: <span id="report-ts-value"></span></span>
+        <script>
+          (function() {
+            var el = document.getElementById('report-ts-value');
+            if (el) {
+              el.textContent = new Date().toUTCString();
+            }
+          })();
+        </script>
 
         <!-- Resource pulled from a developer machine -->
-        <script src="http://localhost:5000/js/telemetry.js"></script>
+        <!-- Telemetry service resolved via Kubernetes DNS; TELEMETRY_SERVICE_HOST defaults to the in-cluster service name -->
+        <script src="http://telemetry-service.default.svc.cluster.local/js/telemetry.js"></script>
 
         <!-- Library served from a non-standard port -->
         <script src="http://cdn.acme-corp.com/js/charts.js"></script>

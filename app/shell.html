@@ -8,7 +8,24 @@
 </head>
 <body>
   <h1>App Shell</h1>
-  <div id="root"></div>
+  <!-- SSR: server-rendered application shell for EKS/Kubernetes SSR pod compatibility -->
+  <div id="root">
+    <div id="ssr-shell" aria-live="polite">
+      <header class="app-header" role="banner">
+        <nav class="app-nav" role="navigation" aria-label="Main navigation">
+          <a href="/" class="nav-brand">Acme Portal</a>
+        </nav>
+      </header>
+      <main class="app-main" role="main" id="main-content">
+        <section class="app-loading" aria-label="Application loading">
+          <p>Loading application&hellip;</p>
+        </section>
+      </main>
+      <footer class="app-footer" role="contentinfo">
+        <p>&copy; Acme Portal</p>
+      </footer>
+    </div>
+  </div>
   <script src="js/bundle.js"></script>
   <noscript>App requires JavaScript.</noscript>
 </body>

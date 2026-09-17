@@ -7,11 +7,37 @@
 </head>
 <body>
   <h1>Contact</h1>
-  <form action="https://api.acme-corp.com/v2/contact/submit" method="post">
+  <!-- cz-html-1003: form action is now resolved at runtime from window.__ENV__.CONTACT_API_URL
+       (injected via Kubernetes ConfigMap + init container). The data-action-template attribute
+       holds the placeholder that the init-container rewriter substitutes before the app starts. -->
+  <form id="contact-form"
+        action="#"
+        data-action-template="{{CONTACT_API_URL}}"
+        method="post">
     <input name="email" type="email">
     <button type="submit">Send</button>
   </form>
-  <script>window.__ENV__ = window.__ENV__ || {};</script>
+  <script>
+    // Resolve the form action from the runtime environment injected by the
+    // Kubernetes ConfigMap / init container via window.__ENV__.
+    window.__ENV__ = window.__ENV__ || {};
+    (function () {
+      var form = document.getElementById('contact-form');
+      if (!form) return;
+      // Prefer the value already rewritten by the init container (data-action-template
+      // will have been replaced with the real URL before this page is served).
+      var tmpl = form.getAttribute('data-action-template');
+      var envUrl = window.__ENV__.CONTACT_API_URL;
+      // Use the env value if the placeholder was not substituted by the init container.
+      if (envUrl) {
+        form.setAttribute('action', envUrl);
+      } else if (tmpl && tmpl.indexOf('{{') === -1) {
+        // Placeholder was already substituted by the init container.
+        form.setAttribute('action', tmpl);
+      }
+      // If neither source is available the form stays disabled (action="#").
+    }());
+  </script>
   <noscript>Email us directly at support@acme.example.</noscript>
 </body>
 </html>
