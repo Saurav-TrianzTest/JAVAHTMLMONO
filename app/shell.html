@@ -8,7 +8,25 @@
 </head>
 <body>
   <h1>App Shell</h1>
-  <div id="root"></div>
+  <!-- SSR: server-rendered application shell for EKS pod hydration -->
+  <div id="root">
+    <div id="ssr-shell" aria-label="Application Shell">
+      <header role="banner">
+        <nav aria-label="Primary navigation">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+          </ul>
+        </nav>
+      </header>
+      <main id="main-content" role="main">
+        <p>Loading application&hellip;</p>
+      </main>
+      <footer role="contentinfo">
+        <p>&copy; Acme Portal</p>
+      </footer>
+    </div>
+  </div>
   <script src="js/bundle.js"></script>
   <noscript>App requires JavaScript.</noscript>
 </body>

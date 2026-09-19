@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  csat:
+    image: csat:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: csat
+    ports:
+      - "8080:8080"
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+      - TZ=UTC
+      - SPRING_PROFILES_ACTIVE=docker
+      # External service connections (provide at runtime)
+      - API_URL=${API_URL:-http://localhost:8080}
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

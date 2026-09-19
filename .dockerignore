@@ -1,0 +1,71 @@
+# ============================================================
+# .dockerignore for acme-portal-static (Csat module)
+# Excludes: build artifacts, wrapper files, dev/test assets,
+#           source maps, IDE files, VCS metadata
+# ============================================================
+
+# ----- Maven build output -----
+target/
+
+# ----- Maven wrapper (NEVER include in Docker build) -----
+mvnw
+mvnw.cmd
+.mvn/
+
+# ----- Gradle wrapper (safety exclusion) -----
+gradlew
+gradlew.bat
+gradle/wrapper/
+
+# ----- Development & test HTML files -----
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug*.html
+*debug*.html
+
+# ----- Build-info / internal diagnostic pages -----
+build-info.html
+
+# ----- Source maps and build artifacts -----
+**/*.map
+**/*.js.map
+**/*.css.map
+assets/js/*.map
+assets/css/*.map
+build/
+dist/
+*.log
+build-logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ----- Version-control metadata -----
+.git/
+.gitignore
+.gitattributes
+
+# ----- IDE / editor artefacts -----
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----- CI / documentation -----
+*.md
+.github/
+docs/
+
+# ----- Local environment overrides -----
+.env
+.env.*
+
+# ----- Kubernetes / scripts (not needed in image) -----
+kubernetes/
+scripts/

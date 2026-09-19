@@ -6,7 +6,42 @@
   <title>Acme App</title>
 </head>
 <body>
-  <div id="root"></div>
+  <!-- SSR: server-rendered SPA entry point for EKS pod hydration -->
+  <div id="root">
+    <div id="ssr-app" aria-label="Acme Application">
+      <header role="banner">
+        <h1>Acme Portal</h1>
+        <nav aria-label="Primary navigation">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/contact">Contact</a></li>
+          </ul>
+        </nav>
+      </header>
+      <main id="main-content" role="main">
+        <p>Loading application&hellip;</p>
+      </main>
+      <footer role="contentinfo">
+        <p>&copy; Acme Portal</p>
+      </footer>
+    </div>
+  </div>
+  <!-- noscript: SSR fallback for EKS pods and JavaScript-disabled clients (cz-html-1006) -->
+  <noscript>
+    <div id="noscript-fallback" role="main" aria-label="Acme Portal - No JavaScript">
+      <h1>Acme Portal</h1>
+      <p>Welcome to Acme Portal. JavaScript is required for the full interactive experience.</p>
+      <nav aria-label="Static navigation">
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/contact">Contact</a></li>
+        </ul>
+      </nav>
+      <p>If you are seeing this message, please enable JavaScript in your browser or contact your administrator.</p>
+    </div>
+  </noscript>
   <script src="assets/js/bundle.js"></script>
 </body>
 </html>
