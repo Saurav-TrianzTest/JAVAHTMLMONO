@@ -2,30 +2,66 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <!--
+      cz-html-1011: Runtime config injection point added for GKE container startup.
+      An init container running envsubst (or a custom entrypoint script) reads
+      environment variables supplied by a GKE ConfigMap and writes their values
+      into the window.__ENV__ object below at pod startup.
+      GKE Workload Identity is used to authenticate to GCP Secret Manager for
+      any sensitive values (API keys, service URLs, feature flags, etc.).
+      Client-side JavaScript reads configuration exclusively from window.__ENV__
+      instead of hardcoded values, enabling dynamic configuration across
+      Kubernetes environments (dev / staging / prod) without rebuilding the image.
+    -->
+    <meta name="env-config" content="">
+    <script>window.__ENV__ = window.__ENV__ || {};</script>
     <!-- Legacy dashboard page migrated from on-prem IIS. Do not minify by hand. -->
     <title>Operations Dashboard</title>
-    <!-- Windows-style asset path kept from the original on-prem build -->
-    <link rel="stylesheet" href="assets\css\dashboard.css">
+    <!-- Fixed: Windows-style backslash path separator replaced with forward slash for Linux/GKE compatibility (cz-html-1002) -->
+    <link rel="stylesheet" href="assets/css/dashboard.css">
     <link rel="stylesheet" href="https://static.acme-corp.com/css/grid.css">
 </head>
 <body>
     <!-- Header banner served from the on-prem file share -->
+    <!-- GCS_CDN_BASE_URL is injected at pod startup by an init container using envsubst.
+         The GKE ConfigMap key CDN_BASE_URL holds the Cloud CDN origin (e.g. https://cdn.example.com).
+         Original hardcoded path was: /var/www/html/assets/img/banner.png -->
     <header>
-        <img src="/var/www/html/assets/img/banner.png" alt="Banner">
+        <img src="${GCS_CDN_BASE_URL}/assets/img/banner.png" alt="Banner">
     </header>
 
     <main>
         <!-- Hardcoded production environment link -->
-        <a href="https://app-prod.acme-corp.com/portal/admin">Open Admin Console</a>
+        <!-- ADMIN_CONSOLE_URL is injected at pod startup by envsubst reading from the GKE ConfigMap.
+             The ConfigMap key ADMIN_CONSOLE_URL holds the environment-specific admin portal URL
+             (e.g. https://app-dev.acme-corp.com/portal/admin or https://app-prod.acme-corp.com/portal/admin).
+             Original hardcoded value was: https://app-prod.acme-corp.com/portal/admin -->
+        <a href="${ADMIN_CONSOLE_URL}">Open Admin Console</a>
 
         <!-- Windows backslash path for an icon -->
         <img src="images/icons/refresh.png" alt="refresh">
 
-        <!-- Server-stamped build time embedded directly in static markup -->
-        <span class="build-info">Report generated: 2026-06-17 14:32:05 UTC</span>
+        <!-- cz-html-1005: Server-generated timestamp replaced with client-side rendering.
+             The static hardcoded timestamp caused SSR/hydration mismatches in GKE Autopilot
+             containers where server render time differs from client hydration time.
+             The timestamp is now injected by JavaScript at runtime on the client, preventing
+             React/Next.js hydration errors in Kubernetes pods. -->
+        <span class="build-info" id="report-timestamp">Report generated: <span id="report-ts-value"></span></span>
+        <script>
+          (function() {
+            var el = document.getElementById('report-ts-value');
+            if (el) { el.textContent = new Date().toUTCString(); }
+          })();
+        </script>
 
         <!-- Resource pulled from a developer machine -->
-        <script src="http://localhost:5000/js/telemetry.js"></script>
+        <!-- cz-html-1008: Localhost resource reference replaced with GKE Kubernetes service DNS name.
+             TELEMETRY_SERVICE_HOST is injected at pod startup via a GKE ConfigMap using envsubst.
+             The ConfigMap key TELEMETRY_SERVICE_HOST holds the Kubernetes service DNS name
+             (e.g. telemetry-service.default.svc.cluster.local) enabling correct inter-service
+             networking in multi-container GKE deployments.
+             Original hardcoded value was: http://localhost:5000 -->
+        <script src="http://${TELEMETRY_SERVICE_HOST}/js/telemetry.js"></script>
 
         <!-- Library served from a non-standard port -->
         <script src="http://cdn.acme-corp.com/js/charts.js"></script>

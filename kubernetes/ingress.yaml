@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: acme-portal-static-ingress
+  namespace: acme-portal-static
+  labels:
+    app: acme-portal-static
+    app.kubernetes.io/name: acme-portal-static
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: ""
+    networking.gke.io/managed-certificates: ""
+spec:
+  rules:
+    - host: acme-portal-static.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: acme-portal-static-service
+                port:
+                  number: 80

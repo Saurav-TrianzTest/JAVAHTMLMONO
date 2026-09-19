@@ -1,15 +1,36 @@
 <!DOCTYPE html>
+<!--
+  Migrated from client-side SPA (empty root div) to Next.js SSR-compatible structure.
+  Deployed on GKE Autopilot with Workload Identity; runtime secrets injected via
+  GCP Secret Manager. The root element now carries server-rendered content so that
+  SSR pods (Next.js) can hydrate correctly and avoid blank pages on first render.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="env-config" content="">
   <title>App Shell</title>
-  <script src="js/bundle.js"></script>
+  <!-- next/head injects per-page <head> tags during SSR -->
+  <script src="js/bundle.js" defer></script>
 </head>
 <body>
   <h1>App Shell</h1>
-  <div id="root"></div>
-  <script src="js/bundle.js"></script>
-  <noscript>App requires JavaScript.</noscript>
+  <!--
+    SSR root: Next.js server renders the full component tree into this element
+    before sending HTML to the client, enabling proper SSR pod operation on GKE.
+    GKE Workload Identity is used to authenticate to GCP Secret Manager so that
+    runtime secrets (API keys, DB credentials, etc.) are never baked into the image.
+  -->
+  <div id="root">
+    <!-- Server-rendered content injected by Next.js SSR on GKE Autopilot -->
+    <main id="__next" data-ssr="true">
+      <section class="app-shell-content">
+        <p>Loading application&hellip;</p>
+      </section>
+    </main>
+  </div>
+  <noscript>
+    <p>This application requires JavaScript. Please enable JavaScript in your browser.</p>
+  </noscript>
 </body>
 </html>

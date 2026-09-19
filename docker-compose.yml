@@ -1,0 +1,28 @@
+version: "3.9"
+
+# =============================================================================
+# docker-compose.yml — Application service ONLY
+# External services (databases, caches, etc.) are provided separately.
+# =============================================================================
+
+services:
+  acme-portal-static:
+    image: acme-portal-static:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acme-portal-static
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Xms256m -Xmx512m -Dfile.encoding=UTF-8 -Duser.timezone=UTC"
+      # External service connections — provide actual values at runtime
+      API_URL: "${API_URL:-http://localhost:8080}"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge

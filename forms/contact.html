@@ -2,16 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- CONTACT_FORM_ACTION_URL is injected by the GKE init container from GCP Secret Manager
+       via the Secret Manager add-on. The init container runs envsubst (or a sed-based script)
+       to replace the __CONTACT_FORM_ACTION_URL__ placeholder with the value read from the
+       mounted secret before NGINX starts. -->
   <meta name="env-config" content="">
   <title>Contact Us</title>
 </head>
 <body>
   <h1>Contact</h1>
-  <form action="https://api.acme-corp.com/v2/contact/submit" method="post">
+  <!-- Form action is set dynamically at runtime via JavaScript using the endpoint value
+       injected by the GKE init container from GCP Secret Manager. -->
+  <form id="contact-form" action="#" method="post">
     <input name="email" type="email">
     <button type="submit">Send</button>
   </form>
-  <script>window.__ENV__ = window.__ENV__ || {};</script>
+  <script>
+    // CONTACT_FORM_ACTION_URL is populated by the GKE init container which reads the
+    // endpoint value from GCP Secret Manager (mounted via the Secret Manager add-on)
+    // and substitutes the __CONTACT_FORM_ACTION_URL__ placeholder before NGINX starts.
+    window.__ENV__ = window.__ENV__ || {};
+    window.__ENV__.CONTACT_FORM_ACTION_URL = "__CONTACT_FORM_ACTION_URL__";
+    (function () {
+      var form = document.getElementById("contact-form");
+      if (form && window.__ENV__ && window.__ENV__.CONTACT_FORM_ACTION_URL &&
+          window.__ENV__.CONTACT_FORM_ACTION_URL !== "__CONTACT_FORM_ACTION_URL__") {
+        form.setAttribute("action", window.__ENV__.CONTACT_FORM_ACTION_URL);
+      }
+    })();
+  </script>
   <noscript>Email us directly at support@acme.example.</noscript>
 </body>
 </html>

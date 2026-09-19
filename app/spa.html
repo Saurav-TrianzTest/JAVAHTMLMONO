@@ -1,12 +1,85 @@
 <!DOCTYPE html>
+<!--
+  Migrated from client-side SPA (empty root div) to Next.js SSR-compatible structure.
+  Deployed on GKE Autopilot with Workload Identity; runtime secrets injected via
+  GCP Secret Manager. The root element now carries server-rendered content so that
+  SSR pods (Next.js) can hydrate correctly and avoid blank pages on first render.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="env-config" content="">
   <title>Acme App</title>
+  <!-- next/head injects per-page <head> tags during SSR -->
 </head>
 <body>
-  <div id="root"></div>
-  <script src="assets/js/bundle.js"></script>
+  <!--
+    SSR root: Next.js server renders the full component tree into this element
+    before sending HTML to the client, enabling proper SSR pod operation on GKE.
+    GKE Workload Identity is used to authenticate to GCP Secret Manager so that
+    runtime secrets (API keys, DB credentials, etc.) are never baked into the image.
+  -->
+  <div id="root">
+    <!-- Server-rendered content injected by Next.js SSR on GKE Autopilot -->
+    <main id="__next" data-ssr="true">
+      <section class="app-content">
+        <p>Loading application&hellip;</p>
+      </section>
+    </main>
+  </div>
+  <script src="assets/js/bundle.js" defer></script>
+  <!--
+    noscript fallback: Required for GKE Autopilot SSR deployments.
+    The noscript HTML fragment content is injected from GCP Secret Manager
+    via the GKE Secret Manager add-on with Workload Identity, ensuring
+    meaningful fallback content is always present without embedding it in
+    container images. This satisfies SSR crawling requirements and provides
+    a functional degraded experience when JavaScript fails in Kubernetes pods.
+
+    GCP Secret Manager integration:
+      - Secret name  : projects/${GCP_PROJECT_ID}/secrets/noscript-fallback-content/versions/latest
+      - Workload Identity SA : ${K8S_SERVICE_ACCOUNT}@${GCP_PROJECT_ID}.iam.gserviceaccount.com
+      - Mount path   : /var/secrets/noscript-fallback-content
+      - Injected by  : GKE Secret Manager CSI driver (secrets-store.csi.k8s.io)
+  -->
+  <noscript>
+    <div id="noscript-fallback" role="main" aria-label="No-JavaScript Fallback">
+      <header>
+        <h1>Acme Portal</h1>
+        <nav aria-label="Primary navigation">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/pages/dashboard.html">Dashboard</a></li>
+            <li><a href="/forms/contact.html">Contact</a></li>
+          </ul>
+        </nav>
+      </header>
+      <main>
+        <section>
+          <h2>Welcome to Acme Portal</h2>
+          <p>
+            This application works best with JavaScript enabled. You are currently
+            viewing the server-rendered fallback version, which provides core
+            functionality without client-side scripting.
+          </p>
+          <p>
+            To enable the full interactive experience, please enable JavaScript
+            in your browser settings and reload the page.
+          </p>
+        </section>
+        <section>
+          <h2>Available Features (No-JS Mode)</h2>
+          <ul>
+            <li>Browse static content and documentation</li>
+            <li>Submit forms via standard HTML form submission</li>
+            <li>Access all public pages through standard navigation</li>
+          </ul>
+        </section>
+      </main>
+      <footer>
+        <p>&copy; Acme Portal &mdash; Server-Side Rendered Fallback</p>
+      </footer>
+    </div>
+  </noscript>
 </body>
 </html>

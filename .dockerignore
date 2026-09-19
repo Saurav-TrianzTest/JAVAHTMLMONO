@@ -1,0 +1,59 @@
+# =============================================================================
+# .dockerignore — Exclude development/test files and non-production artefacts
+# from the production container image built for GCP GKE.
+# =============================================================================
+
+# ── Maven build output (copied explicitly in Dockerfile) ─────────────────────
+target/
+
+# ── Maven wrapper files (NEVER used — system mvn is used instead) ────────────
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Gradle wrapper files (not applicable but excluded for safety) ─────────────
+gradlew
+gradlew.bat
+gradle/wrapper/
+
+# ── Development / test HTML files ────────────────────────────────────────────
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+
+# ── Build-info / diagnostic pages ───────────────────────────────────────────
+build-info.html
+
+# ── Build artifacts / source maps ─────────────────────────────────────────────
+**/*.map
+**/*.js.map
+**/*.css.map
+*.log
+build-logs/
+
+# ── Version-control metadata ─────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── IDE / editor artefacts ───────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── CI / documentation ───────────────────────────────────────────────────────
+*.md
+.github/
+docs/
+scripts/
+kubernetes/
