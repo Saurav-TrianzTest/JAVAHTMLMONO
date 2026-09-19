@@ -7,11 +7,29 @@
 </head>
 <body>
   <h1>Contact</h1>
-  <form action="https://api.acme-corp.com/v2/contact/submit" method="post">
+  <form id="contact-form" action="#" method="post">
     <input name="email" type="email">
     <button type="submit">Send</button>
   </form>
-  <script>window.__ENV__ = window.__ENV__ || {};</script>
+  <script>
+    window.__ENV__ = window.__ENV__ || {};
+    /* Resolve the contact-submit endpoint from:
+       1. A server-side injected window.__ENV__.CONTACT_SUBMIT_URL  (AKS ConfigMap / init-container rewrite)
+       2. The <meta name="env-config"> content attribute            (alternative injection point)
+       3. A safe relative fallback path                             (last resort)
+    */
+    (function () {
+      var metaEl  = document.querySelector('meta[name="env-config"]');
+      var metaUrl = metaEl && metaEl.getAttribute('content');
+      var apiUrl  = window.__ENV__.CONTACT_SUBMIT_URL
+                    || (metaUrl && metaUrl.trim())
+                    || '/api/contact/submit';
+      var form = document.getElementById('contact-form');
+      if (form) {
+        form.setAttribute('action', apiUrl);
+      }
+    })();
+  </script>
   <noscript>Email us directly at support@acme.example.</noscript>
 </body>
 </html>

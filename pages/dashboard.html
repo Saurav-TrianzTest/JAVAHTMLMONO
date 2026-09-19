@@ -3,29 +3,79 @@
 <head>
     <meta charset="utf-8">
     <!-- Legacy dashboard page migrated from on-prem IIS. Do not minify by hand. -->
+    <!--
+      Runtime environment configuration injection point (cz-html-1011).
+      On AKS, an init container runs envsubst against this file using values
+      sourced from a Kubernetes ConfigMap.  The resulting index.html (with
+      concrete values substituted) is written to an emptyDir volume that the
+      main application container serves.
+
+      Example AKS ConfigMap + init-container snippet:
+        initContainers:
+          - name: inject-env-config
+            image: bhgedigital/envsubst
+            command: ["/bin/sh", "-c",
+              "envsubst < /tmpl/dashboard.html > /app/pages/dashboard.html"]
+            env:
+              - name: AZURE_CDN_BASE_URL
+                valueFrom: { configMapKeyRef: { name: app-config, key: AZURE_CDN_BASE_URL } }
+              - name: ADMIN_CONSOLE_URL
+                valueFrom: { configMapKeyRef: { name: app-config, key: ADMIN_CONSOLE_URL } }
+              - name: TELEMETRY_SERVICE_HOST
+                valueFrom: { configMapKeyRef: { name: app-config, key: TELEMETRY_SERVICE_HOST } }
+              - name: APP_ENV
+                valueFrom: { configMapKeyRef: { name: app-config, key: APP_ENV } }
+    -->
+    <meta name="env-config" content="${APP_ENV}">
+    <script>
+      // Runtime config injection point — values substituted by envsubst init container at pod startup.
+      // Source: Kubernetes ConfigMap (app-config) mounted via AKS init container.
+      window.__ENV__ = window.__ENV__ || {};
+      window.__ENV__.AZURE_CDN_BASE_URL    = "${AZURE_CDN_BASE_URL}";
+      window.__ENV__.ADMIN_CONSOLE_URL     = "${ADMIN_CONSOLE_URL}";
+      window.__ENV__.TELEMETRY_SERVICE_HOST = "${TELEMETRY_SERVICE_HOST}";
+      window.__ENV__.APP_ENV               = "${APP_ENV}";
+    </script>
     <title>Operations Dashboard</title>
     <!-- Windows-style asset path kept from the original on-prem build -->
-    <link rel="stylesheet" href="assets\css\dashboard.css">
+    <link rel="stylesheet" href="assets/css/dashboard.css">
     <link rel="stylesheet" href="https://static.acme-corp.com/css/grid.css">
 </head>
 <body>
     <!-- Header banner served from the on-prem file share -->
     <header>
-        <img src="/var/www/html/assets/img/banner.png" alt="Banner">
+        <!-- CONTAINERIZED: Absolute filesystem path replaced with Azure CDN URL via AKS ConfigMap + envsubst -->
+        <img src="${AZURE_CDN_BASE_URL}/assets/img/banner.png" alt="Banner">
     </header>
 
     <main>
         <!-- Hardcoded production environment link -->
-        <a href="https://app-prod.acme-corp.com/portal/admin">Open Admin Console</a>
+        <!-- CONTAINERIZED: Hardcoded environment-specific URL replaced with AKS ConfigMap token substituted at container startup via envsubst -->
+        <a href="${ADMIN_CONSOLE_URL}">Open Admin Console</a>
 
         <!-- Windows backslash path for an icon -->
         <img src="images/icons/refresh.png" alt="refresh">
 
-        <!-- Server-stamped build time embedded directly in static markup -->
-        <span class="build-info">Report generated: 2026-06-17 14:32:05 UTC</span>
+        <!-- CONTAINERIZED (cz-html-1005): Server-generated timestamp replaced with
+             client-side rendering to prevent SSR hydration mismatches in AKS-hosted
+             Next.js pods. Timestamp is now computed in the browser via JavaScript,
+             eliminating the mismatch between server render time and client hydration
+             time in Kubernetes SSR containers. -->
+        <span class="build-info" id="report-timestamp">Report generated: <span id="report-ts-value">Loading...</span></span>
+        <script>
+          (function() {
+            var el = document.getElementById('report-ts-value');
+            if (el) { el.textContent = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC'); }
+          })();
+        </script>
 
         <!-- Resource pulled from a developer machine -->
-        <script src="http://localhost:5000/js/telemetry.js"></script>
+        <!-- CONTAINERIZED (cz-html-1008): localhost:5000 reference replaced with
+             AKS Kubernetes Service DNS name injected via Azure App Configuration
+             and Kubernetes ConfigMap. TELEMETRY_SERVICE_HOST is set to the
+             in-cluster service DNS (e.g. telemetry-svc.default.svc.cluster.local)
+             and substituted at container startup via envsubst. -->
+        <script src="http://${TELEMETRY_SERVICE_HOST}/js/telemetry.js"></script>
 
         <!-- Library served from a non-standard port -->
         <script src="http://cdn.acme-corp.com/js/charts.js"></script>

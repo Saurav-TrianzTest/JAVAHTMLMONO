@@ -1,0 +1,68 @@
+# ============================================================
+# .dockerignore – exclude development / test HTML files and
+# other non-production artefacts from the Docker build context
+# ============================================================
+
+# ----- Build artifacts / source maps ------------------------
+*.map
+**/*.map
+*.js.map
+build-info.html
+build.log
+build-*.log
+
+# ----- Development & test HTML files -----------------------
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+qa.html
+qa-*.html
+*-qa.html
+staging.html
+staging-*.html
+*-staging.html
+
+# ----- Maven build output (re-built inside the image) -------
+target/
+
+# ----- Maven wrapper (use system mvn inside Docker) ---------
+mvnw
+mvnw.cmd
+.mvn/
+
+# ----- Gradle wrapper (not used, but exclude for safety) ----
+gradlew
+gradlew.bat
+gradle/wrapper/
+
+# ----- Git metadata -----------------------------------------
+.git
+.gitignore
+.gitattributes
+
+# ----- IDE / editor artefacts --------------------------------
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----- Local environment / secrets --------------------------
+.env
+.env.*
+*.local
+
+# ----- CI / documentation -----------------------------------
+.github/
+docs/
+*.md
+
+# ----- Kubernetes / scripts (not needed in image) -----------
+kubernetes/
+scripts/

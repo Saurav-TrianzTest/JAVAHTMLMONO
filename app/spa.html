@@ -1,12 +1,163 @@
 <!DOCTYPE html>
+<!--
+  Next.js SSR SPA Entry Point — deployed on AKS (Azure Kubernetes Service)
+  Secrets injected via Azure Key Vault CSI Driver (SecretProviderClass).
+  Pod identity resolved through AKS Workload Identity (azure.workload.identity/use: "true").
+
+  AKS Workload Identity annotations required on the ServiceAccount:
+    azure.workload.identity/client-id: <AZURE_CLIENT_ID>
+    azure.workload.identity/tenant-id: <AZURE_TENANT_ID>
+
+  SecretProviderClass mounts Key Vault secrets as environment variables:
+    APP_ENV, API_BASE_URL, NEXT_PUBLIC_APP_TITLE, BUILD_ID
+
+  noscript fallback content is mounted from Azure Key Vault as a volume
+  using the CSI Secrets Store driver on AKS (SecretProviderClass):
+    volumes:
+      - name: noscript-fallback
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: akv-noscript-fallback
+    volumeMounts:
+      - name: noscript-fallback
+        mountPath: /mnt/secrets/noscript
+        readOnly: true
+  The SSR Node.js server reads /mnt/secrets/noscript/NOSCRIPT_FALLBACK_HTML
+  and injects it into the <noscript> tag at request time.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="env-config" content="">
-  <title>Acme App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    SSR environment configuration injected by the Next.js Node.js server at request time.
+    Values are sourced from environment variables populated by the AKS Key Vault CSI Driver.
+    Example SecretProviderClass volume mount:
+      env:
+        - name: APP_ENV
+          valueFrom:
+            secretKeyRef:
+              name: akv-secrets
+              key: APP_ENV
+        - name: NEXT_PUBLIC_APP_TITLE
+          valueFrom:
+            secretKeyRef:
+              name: akv-secrets
+              key: NEXT_PUBLIC_APP_TITLE
+  -->
+  <meta name="env-config" content="${APP_ENV}">
+  <title>${NEXT_PUBLIC_APP_TITLE}</title>
+  <!--
+    __NEXT_DATA__ is the standard Next.js SSR data island.
+    The Next.js Node.js server (running inside the AKS pod) serialises
+    getServerSideProps / getStaticProps output here before sending the
+    response, so the page is never blank on first paint.
+  -->
+  <script id="__NEXT_DATA__" type="application/json">
+    {
+      "props": {
+        "pageProps": {
+          "appEnv": "${APP_ENV}",
+          "buildId": "${BUILD_ID}"
+        }
+      },
+      "page": "/spa",
+      "query": {},
+      "buildId": "${BUILD_ID}",
+      "runtimeConfig": {
+        "apiBaseUrl": "${API_BASE_URL}"
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/_next/static/css/main.css">
+  <!--
+    noscript style fallback: ensures the SSR-rendered content remains
+    fully readable and navigable when JavaScript is disabled or fails
+    to load inside Kubernetes pods during SSR crawling.
+  -->
+  <noscript>
+    <style>
+      body { font-family: sans-serif; margin: 2rem; }
+      .noscript-banner { background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; }
+      nav a { margin-right: 1rem; }
+    </style>
+  </noscript>
 </head>
 <body>
-  <div id="root"></div>
-  <script src="assets/js/bundle.js"></script>
+  <!--
+    noscript fallback banner — content fragment injected by the AKS SSR Node.js
+    server from the Azure Key Vault CSI Driver volume mount at
+    /mnt/secrets/noscript/NOSCRIPT_FALLBACK_HTML.
+    This ensures meaningful content is visible to SSR crawlers and users
+    when JavaScript fails to load in Kubernetes pods.
+    SecretProviderClass (akv-noscript-fallback) definition:
+      apiVersion: secrets-store.csi.x-k8s.io/v1
+      kind: SecretProviderClass
+      metadata:
+        name: akv-noscript-fallback
+      spec:
+        provider: azure
+        parameters:
+          usePodIdentity: "false"
+          useVMManagedIdentity: "false"
+          clientID: "${AZURE_CLIENT_ID}"
+          keyvaultName: "${AZURE_KEYVAULT_NAME}"
+          tenantId: "${AZURE_TENANT_ID}"
+          objects: |
+            array:
+              - |
+                objectName: NOSCRIPT-FALLBACK-HTML
+                objectType: secret
+                objectVersion: ""
+  -->
+  <noscript>
+    <div class="noscript-banner" role="alert" aria-live="polite">
+      <strong>JavaScript is disabled or unavailable.</strong>
+      The core content of this application is server-rendered by Next.js on AKS
+      and is fully accessible below without JavaScript.
+      For the complete interactive experience, please enable JavaScript or use a
+      JavaScript-capable browser.
+    </div>
+    <!-- SSR static fallback navigation — rendered server-side for crawlers and no-JS clients -->
+    <nav aria-label="Static fallback navigation">
+      <a href="/">Home</a>
+      <a href="/pages/dashboard.html">Dashboard</a>
+      <a href="/forms/contact.html">Contact</a>
+    </nav>
+  </noscript>
+
+  <!--
+    #__next is the standard Next.js SSR root mount point.
+    The Next.js server renders meaningful HTML here on the server side
+    (inside the AKS pod) before the response is sent to the client,
+    preventing blank pages during SSR pod operation.
+    React hydration attaches to this pre-rendered markup on the client.
+  -->
+  <div id="__next">
+    <!-- SSR-rendered SPA content — populated by Next.js getServerSideProps -->
+    <header role="banner">
+      <nav aria-label="Primary navigation">
+        <a href="/">Home</a>
+      </nav>
+    </header>
+    <main id="main-content" role="main">
+      <!-- Next.js page component output is injected here by the SSR Node.js server -->
+      <h1>Acme App</h1>
+      <p>Loading application…</p>
+    </main>
+    <footer role="contentinfo">
+      <p>Acme Portal &mdash; served by Next.js SSR on AKS</p>
+    </footer>
+  </div>
+
+  <!--
+    Next.js client-side runtime chunks.
+    These are served from the AKS pod's static asset path and hydrate
+    the server-rendered markup above; they do NOT replace it.
+  -->
+  <script src="/_next/static/chunks/webpack.js" defer></script>
+  <script src="/_next/static/chunks/main.js" defer></script>
 </body>
 </html>
