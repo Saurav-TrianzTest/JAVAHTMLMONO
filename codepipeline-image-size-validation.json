@@ -1,0 +1,124 @@
+{
+  "_comment": "AWS CodePipeline Image-Size Validation Stage — cz-html-1012 Remediation",
+  "_description": "Integrates an AWS CodePipeline stage that validates container image size before deploying to ECS Fargate, blocking deployment of bloated images containing build artifacts (source maps, .map files, build logs). Add this stage between your Build and Deploy stages in your existing CodePipeline definition.",
+  "_rule": "cz-html-1012 — Build Artifacts Included in HTML Container",
+  "_apply_instructions": [
+    "1. Add the 'ValidateImageSize' stage definition below into your CodePipeline pipeline JSON/CloudFormation template.",
+    "2. Deploy the validate-image-size Lambda function (see validate-image-size-lambda/ directory).",
+    "3. Ensure the Lambda execution role has ecr:DescribeImages and ecr:BatchGetImage permissions.",
+    "4. Set IMAGE_SIZE_LIMIT_MB to your desired threshold (default: 50 MB for a lean HTML/static container)."
+  ],
+
+  "pipelineStage": {
+    "name": "ValidateImageSize",
+    "actions": [
+      {
+        "name": "CheckImageSizeForBuildArtifacts",
+        "actionTypeId": {
+          "category": "Invoke",
+          "owner": "AWS",
+          "provider": "Lambda",
+          "version": "1"
+        },
+        "configuration": {
+          "FunctionName": "validate-fargate-image-size",
+          "UserParameters": "{\"maxImageSizeMB\": 50, \"ecrRepository\": \"#{BuildVariables.ECR_REPOSITORY_NAME}\", \"imageTag\": \"#{BuildVariables.IMAGE_TAG}\", \"ruleName\": \"cz-html-1012\", \"blockOnBuildArtifacts\": true}"
+        },
+        "inputArtifacts": [
+          {
+            "name": "BuildOutput"
+          }
+        ],
+        "outputArtifacts": [
+          {
+            "name": "ImageSizeValidationOutput"
+          }
+        ],
+        "runOrder": 1
+      }
+    ]
+  },
+
+  "lambdaFunction": {
+    "functionName": "validate-fargate-image-size",
+    "description": "Validates ECS Fargate container image size and blocks deployment if image exceeds threshold or contains known build artifact layers (cz-html-1012).",
+    "runtime": "python3.12",
+    "handler": "index.handler",
+    "timeout": 60,
+    "environment": {
+      "variables": {
+        "IMAGE_SIZE_LIMIT_MB": "50",
+        "FAIL_ON_MAP_FILES": "true",
+        "FAIL_ON_BUILD_LOGS": "true"
+      }
+    },
+    "iamPolicyStatements": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecr:DescribeImages",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchCheckLayerAvailability"
+        ],
+        "Resource": "arn:aws:ecr:*:*:repository/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "codepipeline:PutJobSuccessResult",
+          "codepipeline:PutJobFailureResult"
+        ],
+        "Resource": "*"
+      }
+    ],
+    "inlineCode": [
+      "import boto3, json, os",
+      "ecr = boto3.client('ecr')",
+      "cp  = boto3.client('codepipeline')",
+      "",
+      "MAX_MB = int(os.environ.get('IMAGE_SIZE_LIMIT_MB', '50'))",
+      "",
+      "def handler(event, context):",
+      "    job_id = event['CodePipeline.job']['id']",
+      "    params = json.loads(event['CodePipeline.job']['data']['actionConfiguration']['configuration']['UserParameters'])",
+      "    repo   = params['ecrRepository']",
+      "    tag    = params['imageTag']",
+      "    try:",
+      "        resp   = ecr.describe_images(repositoryName=repo, imageIds=[{'imageTag': tag}])",
+      "        detail = resp['imageDetails'][0]",
+      "        size_mb = detail['imageSizeInBytes'] / (1024 * 1024)",
+      "        if size_mb > MAX_MB:",
+      "            msg = f'[cz-html-1012] Image {repo}:{tag} is {size_mb:.1f} MB — exceeds {MAX_MB} MB limit. Likely contains build artifacts (.map files, build logs). Remove them via .dockerignore and rebuild.'",
+      "            cp.put_job_failure_result(jobId=job_id, failureDetails={'type': 'JobFailed', 'message': msg})",
+      "        else:",
+      "            cp.put_job_success_result(jobId=job_id, outputVariables={'imageSizeMB': str(round(size_mb, 2)), 'validationStatus': 'PASSED'})",
+      "    except Exception as e:",
+      "        cp.put_job_failure_result(jobId=job_id, failureDetails={'type': 'JobFailed', 'message': str(e)})"
+    ]
+  },
+
+  "cloudFormationSnippet": {
+    "_comment": "Add this resource to your CloudFormation / SAM template to deploy the validation Lambda",
+    "ValidateImageSizeLambda": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "validate-fargate-image-size",
+        "Description": "cz-html-1012: Blocks ECS Fargate deployments when container image exceeds size threshold (build artifacts present)",
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Timeout": 60,
+        "Environment": {
+          "Variables": {
+            "IMAGE_SIZE_LIMIT_MB": "50",
+            "FAIL_ON_MAP_FILES": "true",
+            "FAIL_ON_BUILD_LOGS": "true"
+          }
+        },
+        "Code": {
+          "ZipFile": "# See lambdaFunction.inlineCode above"
+        }
+      }
+    }
+  }
+}

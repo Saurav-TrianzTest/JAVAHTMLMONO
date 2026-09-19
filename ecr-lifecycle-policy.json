@@ -1,0 +1,43 @@
+{
+  "_comment": "ECR Lifecycle Policy — cz-html-1010 Remediation",
+  "_description": "Automatically expires image tags associated with development builds so that Fargate services cannot accidentally reference a bloated dev image. Apply this policy to every ECR repository used by the Fargate pipeline.",
+  "_apply_command": "aws ecr put-lifecycle-policy --repository-name <YOUR_REPO_NAME> --lifecycle-policy-text file://ecr-lifecycle-policy.json",
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Expire dev-tagged images immediately — cz-html-1010: dev HTML files must not reach production Fargate tasks",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPrefixList": [
+          "dev",
+          "dev-",
+          "test",
+          "test-",
+          "debug",
+          "debug-",
+          "qa",
+          "qa-",
+          "local",
+          "local-"
+        ],
+        "countType": "imageCountMoreThan",
+        "countNumber": 0
+      },
+      "action": {
+        "type": "expire"
+      }
+    },
+    {
+      "rulePriority": 2,
+      "description": "Retain only the 10 most recent production (untagged or semver-tagged) images; purge older ones to prevent stale dev builds from accumulating",
+      "selection": {
+        "tagStatus": "any",
+        "countType": "imageCountMoreThan",
+        "countNumber": 10
+      },
+      "action": {
+        "type": "expire"
+      }
+    }
+  ]
+}

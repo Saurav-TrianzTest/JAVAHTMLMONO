@@ -7,11 +7,22 @@
 </head>
 <body>
   <h1>Contact</h1>
-  <form action="https://api.acme-corp.com/v2/contact/submit" method="post">
+  <form id="contact-form" action="#" method="post">
     <input name="email" type="email">
     <button type="submit">Send</button>
   </form>
-  <script>window.__ENV__ = window.__ENV__ || {};</script>
+  <script>
+    window.__ENV__ = window.__ENV__ || {};
+    (function () {
+      var contactApiUrl = (window.__ENV__ && window.__ENV__.CONTACT_API_URL)
+        ? window.__ENV__.CONTACT_API_URL
+        : (typeof CONTACT_API_URL !== 'undefined' ? CONTACT_API_URL : '');
+      var form = document.getElementById('contact-form');
+      if (form && contactApiUrl) {
+        form.setAttribute('action', contactApiUrl);
+      }
+    })();
+  </script>
   <noscript>Email us directly at support@acme.example.</noscript>
 </body>
 </html>

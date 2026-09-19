@@ -1,0 +1,70 @@
+# =============================================================================
+# .dockerignore — Production Container Build Exclusions
+# Ensures dev/test HTML files, build artifacts, and wrapper scripts are
+# never copied into the production image.
+# =============================================================================
+
+# ── Maven build output (copied selectively in Dockerfile) ────────────────────
+target/
+*.class
+
+# ── Maven wrapper — NEVER used inside Docker (system mvn is used instead) ────
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Gradle wrapper (not used in this project, but excluded for safety) ────────
+gradlew
+gradlew.bat
+gradle/wrapper/
+.gradle/
+
+# ── Development & test HTML files ────────────────────────────────────────────
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+test-*.html
+*-test.html
+
+# ── Build-info / internal diagnostic pages ───────────────────────────────────
+build-info.html
+
+# ── Source maps (expose original source — must not ship in production) ────────
+assets/**/*.map
+assets/**/*.map.gz
+**/*.js.map
+**/*.css.map
+build-logs/
+*.build.log
+
+# ── Version-control metadata ─────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / editor files ───────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── CI / local tooling ───────────────────────────────────────────────────────
+.dockerignore
+docker-compose*.yml
+*.md
+
+# ── Deployment / ECS artefacts (not needed in image) ─────────────────────────
+ecs/
+scripts/
+docs/
+codepipeline-image-size-validation.json
+ecr-lifecycle-policy.json

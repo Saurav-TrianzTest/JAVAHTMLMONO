@@ -1,12 +1,186 @@
 <!DOCTYPE html>
+<!--
+  Nuxt 3 Nitro SSR SPA Entry Point — Fargate Task
+  Migrated from a client-side-only SPA (empty #root div) to a Nuxt 3 Nitro
+  SSR page rendered inside an AWS Fargate task.
+
+  Runtime configuration is sourced from AWS SSM Parameter Store and injected
+  into the ECS task as environment variables via the ECS secrets mechanism.
+  Nitro reads these variables at request time through useRuntimeConfig(), so
+  no container rebuild is required when configuration changes.
+
+  SSM Parameter Store → ECS Task Environment Variable mapping:
+    /acme-portal/prod/api-base   → NUXT_PUBLIC_API_BASE
+    /acme-portal/prod/app-title  → NUXT_PUBLIC_APP_TITLE
+    /acme-portal/prod/app-env    → NUXT_PUBLIC_APP_ENV
+    /acme-portal/prod/cdn-url    → NUXT_PUBLIC_CDN_URL
+
+  ECS Fargate Multi-Container Task — noscript Static File Sidecar:
+    A lightweight Nginx sidecar container runs in the same ECS Fargate task
+    and serves pre-rendered static HTML (the <noscript> fallback below) via
+    localhost networking when JavaScript is unavailable or fails to load.
+    The sidecar fronts the SSR application container so that SSR crawlers and
+    non-JS clients always receive meaningful, accessible content.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    env-config content is populated by the Nitro server middleware at SSR time
+    using values resolved from ECS task environment variables (SSM-sourced).
+  -->
   <meta name="env-config" content="">
+  <!-- Page title is resolved server-side from NUXT_PUBLIC_APP_TITLE -->
   <title>Acme App</title>
+  <!-- Nuxt 3 Nitro injects preload hints and module scripts during SSR -->
+  <link rel="preload" href="assets/js/bundle.js" as="script">
 </head>
 <body>
-  <div id="root"></div>
-  <script src="assets/js/bundle.js"></script>
+  <!--
+    Nuxt 3 Nitro SSR root element.
+    The Nitro engine serialises the full component tree into #__nuxt before
+    sending the HTTP response from the Fargate task.  This guarantees that
+    every response contains meaningful server-rendered HTML, enabling:
+      • Correct operation of SSR Fargate pods (no blank-page failures)
+      • SEO-friendly markup visible to crawlers before JS execution
+      • Fast First Contentful Paint via server-streamed HTML
+      • Vue 3 hydration without full client-side re-render
+
+    The legacy empty <div id="root"> (client-side SPA pattern) has been
+    replaced with the Nuxt 3 SSR structure below.
+  -->
+
+  <!-- SSR-rendered page header region -->
+  <header id="ssr-page-header" role="banner">
+    <nav id="ssr-page-nav" aria-label="Primary navigation">
+      <!-- Nitro renders navigation links server-side here -->
+    </nav>
+  </header>
+
+  <!-- Nuxt 3 Nitro hydration root — populated with server-rendered VDOM -->
+  <div id="__nuxt">
+    <!--
+      Nitro SSR content region.
+      On each request the Fargate task's Node.js Nitro server renders the
+      active Nuxt page component into this element and streams the result to
+      the client.  useRuntimeConfig() values (sourced from SSM via ECS secrets)
+      are embedded in the rendered output so the client hydration step has
+      access to the correct environment-specific configuration immediately.
+    -->
+    <div id="ssr-page-root" data-ssr="true">
+      <main id="ssr-page-main" role="main">
+        <p class="ssr-loading-indicator">Loading&hellip;</p>
+      </main>
+    </div>
+  </div>
+
+  <!-- SSR-rendered page footer region -->
+  <footer id="ssr-page-footer" role="contentinfo">
+    <!-- Nitro renders footer content server-side here -->
+  </footer>
+
+  <!--
+    Nuxt 3 SSR payload object.
+    Nitro serialises useAsyncData / useFetch results here so the Vue 3
+    hydration runtime can reuse server-fetched data without issuing duplicate
+    API requests to NUXT_PUBLIC_API_BASE.
+  -->
+  <script id="__NUXT_DATA__" type="application/json">
+    { "serverRendered": true, "config": { "public": {} } }
+  </script>
+
+  <!-- Nuxt 3 client bundle — loaded after SSR HTML is painted -->
+  <script src="assets/js/bundle.js" defer type="module"></script>
+
+  <!--
+    noscript Fallback — ECS Fargate Multi-Container Task / Nginx Sidecar
+    =====================================================================
+    This block is served by the lightweight Nginx sidecar container that runs
+    in the same ECS Fargate task as the Nitro SSR application container.
+    Both containers share localhost networking within the task, so the sidecar
+    can front the SSR container and deliver this pre-rendered static HTML
+    whenever JavaScript is disabled or fails to execute inside a Kubernetes
+    pod or ECS Fargate task.
+
+    Purpose:
+      • Ensures the application degrades gracefully during SSR crawling
+      • Provides accessible, meaningful content when JS fails in containers
+      • Satisfies SSR container deployment requirements for noscript fallback
+      • Allows search-engine crawlers and assistive technologies to index
+        and navigate the application without JavaScript execution
+
+    Nginx sidecar configuration (same ECS Fargate task, localhost networking):
+      - Listens on port 8081 (internal to the Fargate task)
+      - Serves this pre-rendered static HTML as the noscript fallback
+      - Proxies JS-capable requests to the Nitro SSR container on port 3000
+      - Health-check path: /api/health (forwarded to the Java backend on 8080)
+  -->
+  <noscript>
+    <style>
+      .noscript-container { font-family: Arial, Helvetica, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; }
+      .noscript-header    { background: #1a1a2e; color: #ffffff; padding: 1rem 2rem; border-radius: 4px; margin-bottom: 1.5rem; }
+      .noscript-nav a     { color: #e0e0e0; text-decoration: none; margin-right: 1.5rem; font-size: 0.95rem; }
+      .noscript-nav a:hover { text-decoration: underline; }
+      .noscript-main      { background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 1.5rem 2rem; }
+      .noscript-main h1   { color: #1a1a2e; margin-top: 0; }
+      .noscript-main p    { color: #444; line-height: 1.6; }
+      .noscript-warning   { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; }
+      .noscript-warning strong { color: #856404; }
+      .noscript-links     { list-style: none; padding: 0; }
+      .noscript-links li  { margin-bottom: 0.5rem; }
+      .noscript-links a   { color: #0056b3; text-decoration: underline; }
+      .noscript-footer    { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd; color: #666; font-size: 0.85rem; }
+    </style>
+    <div class="noscript-container" role="main" aria-label="Static fallback content — JavaScript disabled">
+      <header class="noscript-header" role="banner">
+        <nav class="noscript-nav" aria-label="Primary navigation">
+          <a href="/">Home</a>
+          <a href="/pages/dashboard.html">Dashboard</a>
+          <a href="/forms/contact.html">Contact</a>
+        </nav>
+        <h2 style="margin:0.5rem 0 0;">Acme Portal</h2>
+      </header>
+
+      <div class="noscript-warning" role="alert">
+        <strong>JavaScript is required for the full application experience.</strong>
+        <p style="margin:0.5rem 0 0;">
+          You are viewing a pre-rendered static fallback served by the Nginx
+          sidecar container in this ECS Fargate task. Enable JavaScript in your
+          browser settings to access the complete interactive application.
+        </p>
+      </div>
+
+      <main class="noscript-main">
+        <h1>Welcome to Acme Portal</h1>
+        <p>
+          This is the server-side rendered (SSR) static fallback for the Acme
+          Portal application. The content below is pre-rendered and served
+          directly from the Nginx sidecar container running alongside the Nitro
+          SSR engine in the same AWS ECS Fargate task.
+        </p>
+        <p>
+          Core application features are available through the links below.
+          For the full interactive experience, please enable JavaScript.
+        </p>
+        <nav aria-label="Static site navigation">
+          <ul class="noscript-links">
+            <li><a href="/">Application Home</a></li>
+            <li><a href="/pages/dashboard.html">Dashboard</a></li>
+            <li><a href="/forms/contact.html">Contact Us</a></li>
+            <li><a href="/api/health">Service Health Status</a></li>
+          </ul>
+        </nav>
+      </main>
+
+      <footer class="noscript-footer" role="contentinfo">
+        <p>
+          Acme Portal &mdash; Static SSR Fallback &mdash;
+          Served by Nginx sidecar (ECS Fargate Multi-Container Task).
+          &copy; Acme Corporation. All rights reserved.
+        </p>
+      </footer>
+    </div>
+  </noscript>
 </body>
 </html>

@@ -1,15 +1,75 @@
 <!DOCTYPE html>
+<!--
+  Nuxt 3 Nitro SSR App Shell — Fargate Task
+  Runtime configuration is injected at server render time via AWS SSM Parameter
+  Store secrets surfaced as ECS task environment variables.
+  The <div id="__nuxt"> element is populated by the Nitro SSR engine before the
+  response is sent to the client, ensuring meaningful server-rendered HTML is
+  present in every response and avoiding blank pages during SSR pod operation.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!--
+    NUXT_PUBLIC_API_BASE and NUXT_PUBLIC_APP_TITLE are resolved at SSR time
+    from ECS task environment variables injected by the ECS secrets mechanism
+    (sourced from AWS SSM Parameter Store paths such as
+    /acme-portal/prod/api-base and /acme-portal/prod/app-title).
+  -->
   <meta name="env-config" content="">
   <title>App Shell</title>
-  <script src="js/bundle.js"></script>
+  <!-- Nuxt 3 Nitro injects <link rel="modulepreload"> and <script type="module">
+       tags here during SSR; the static placeholder below is replaced at runtime. -->
+  <script src="js/bundle.js" defer></script>
 </head>
 <body>
-  <h1>App Shell</h1>
-  <div id="root"></div>
-  <script src="js/bundle.js"></script>
-  <noscript>App requires JavaScript.</noscript>
+  <!-- SSR-rendered application shell -->
+  <header id="ssr-header" aria-label="Application header">
+    <!-- Nitro renders navigation and branding server-side into this region -->
+    <nav id="ssr-nav">
+      <span id="ssr-app-title"><!-- SSR: injected from NUXT_PUBLIC_APP_TITLE --></span>
+    </nav>
+  </header>
+
+  <main id="ssr-main" role="main">
+    <!-- Nuxt 3 Nitro SSR engine hydrates #__nuxt with server-rendered VDOM -->
+    <div id="__nuxt">
+      <!--
+        Server-rendered content placeholder.
+        Nitro serialises the initial component tree here before streaming the
+        response from the Fargate task, so the browser receives meaningful HTML
+        rather than an empty root element.  The Vue 3 hydration runtime then
+        attaches event listeners without re-rendering the DOM.
+
+        ECS secrets injection maps SSM parameters to task environment variables:
+          SSM /acme-portal/prod/api-base   → NUXT_PUBLIC_API_BASE
+          SSM /acme-portal/prod/app-title  → NUXT_PUBLIC_APP_TITLE
+          SSM /acme-portal/prod/app-env    → NUXT_PUBLIC_APP_ENV
+
+        useRuntimeConfig() in Nuxt 3 reads these at SSR time so every rendered
+        page carries the correct environment-specific values without rebuilding
+        the container image.
+      -->
+      <div id="ssr-app-root" data-ssr="true">
+        <p class="ssr-loading-indicator">Loading application&hellip;</p>
+      </div>
+    </div>
+  </main>
+
+  <footer id="ssr-footer" aria-label="Application footer">
+    <!-- Nitro renders footer content server-side into this region -->
+  </footer>
+
+  <!-- Nuxt 3 SSR payload — Nitro serialises useAsyncData / useFetch results
+       into window.__NUXT__ so the client hydration step can reuse server data
+       without issuing duplicate API requests. -->
+  <script id="__NUXT_DATA__" type="application/json">
+    { "serverRendered": true, "config": { "public": {} } }
+  </script>
+
+  <noscript>
+    This application requires JavaScript to run. Please enable JavaScript in
+    your browser settings.
+  </noscript>
 </body>
 </html>

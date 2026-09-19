@@ -1,0 +1,40 @@
+version: "3.9"
+
+# =============================================================================
+# docker-compose.yml — acme-portal-static (application only)
+# External services (databases, caches, queues) are NOT included here.
+# Use environment variables to connect to external infrastructure.
+# =============================================================================
+
+services:
+  acme-portal-static:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: acme-portal-static:latest
+    container_name: acme-portal-static
+    ports:
+      - "8080:8080"
+    environment:
+      # JVM tuning
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom -Dfile.encoding=UTF-8 -Duser.timezone=UTC"
+      # Application settings
+      TZ: "UTC"
+      # External service connections (override at runtime)
+      # DATABASE_URL: "jdbc:postgresql://db-host:5432/acmeportal"
+      # REDIS_HOST: "redis-host"
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

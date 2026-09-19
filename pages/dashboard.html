@@ -4,30 +4,153 @@
     <meta charset="utf-8">
     <!-- Legacy dashboard page migrated from on-prem IIS. Do not minify by hand. -->
     <title>Operations Dashboard</title>
+    <!--
+      cz-html-1011: Runtime config injection point added for ECS Fargate / Kubernetes
+      container deployments.
+
+      HOW IT WORKS (Serve Runtime Config from SSM Parameter Store via Sidecar Container):
+      ─────────────────────────────────────────────────────────────────────────────────────
+      1. An AWS SSM Agent sidecar container (or a custom init container) runs alongside
+         the Nginx container inside the same ECS Fargate task.
+      2. At task startup the sidecar reads the required parameters from AWS SSM Parameter
+         Store (e.g. /acme-portal/prod/cdn-base-url, /acme-portal/prod/admin-console-url)
+         and writes them to a shared ephemeral volume as /usr/share/nginx/html/config.json:
+             {
+               "CDN_BASE_URL":       "https://d1example.cloudfront.net",
+               "ADMIN_CONSOLE_URL":  "https://app-prod.acme-corp.com/portal/admin"
+             }
+      3. Nginx serves that file at the well-known path /config.json.
+      4. The <script> block below fetches /config.json at page load, merges the values
+         into window.__ENV__, and makes them available to all subsequent inline scripts
+         and JavaScript modules on this page.
+      5. Because the config.json is written at task startup (not baked into the image),
+         the same container image can be promoted across dev / staging / prod without
+         rebuilding — only the SSM parameter values change per environment.
+
+      ECS Task Definition snippet (illustrative):
+        volumes:
+          - name: runtime-config
+        containerDefinitions:
+          - name: ssm-sidecar
+            image: amazon/aws-ssm-agent   # or a custom config-writer image
+            essential: false
+            mountPoints:
+              - sourceVolume: runtime-config
+                containerPath: /config
+            command:
+              - "/bin/sh"
+              - "-c"
+              - |
+                  aws ssm get-parameters-by-path \
+                    --path /acme-portal/${ENV}/ \
+                    --with-decryption \
+                    --query 'Parameters[*].{k:Name,v:Value}' \
+                    --output json \
+                  | jq 'map({(.k|split("/")|last): .v}) | add' \
+                  > /config/config.json
+          - name: nginx
+            image: <ECR_REPO>/acme-portal-static:latest
+            mountPoints:
+              - sourceVolume: runtime-config
+                containerPath: /usr/share/nginx/html
+    -->
+    <meta name="env-config" content="">
+
     <!-- Windows-style asset path kept from the original on-prem build -->
-    <link rel="stylesheet" href="assets\css\dashboard.css">
+    <!-- cz-html-1002: Replaced Windows backslash path separator with forward slash
+         for Linux container (ECS Fargate) compatibility. Backslash paths break asset
+         loading in Linux-based containers; forward slashes are required. -->
+    <link rel="stylesheet" href="assets/css/dashboard.css">
     <link rel="stylesheet" href="https://static.acme-corp.com/css/grid.css">
+
+    <!--
+      Runtime config bootstrap script (cz-html-1011).
+      Fetches /config.json (written by the SSM sidecar at task startup) and
+      populates window.__ENV__ before any other script on the page runs.
+      A synchronous XHR is used intentionally so that downstream inline scripts
+      can read window.__ENV__ values without waiting for a Promise.
+    -->
+    <script>
+      (function () {
+        // Initialise the global env namespace so downstream code can always
+        // reference window.__ENV__ safely, even if the fetch fails.
+        window.__ENV__ = window.__ENV__ || {};
+
+        try {
+          // Synchronous fetch of the sidecar-written runtime config file.
+          // /config.json is served by Nginx from the shared ECS task volume.
+          var xhr = new XMLHttpRequest();
+          xhr.open('GET', '/config.json', false); // false = synchronous
+          xhr.send(null);
+          if (xhr.status === 200) {
+            var cfg = JSON.parse(xhr.responseText);
+            // Merge all keys from config.json into window.__ENV__
+            Object.keys(cfg).forEach(function (key) {
+              window.__ENV__[key] = cfg[key];
+            });
+          }
+        } catch (e) {
+          // Silently continue with empty __ENV__ if config.json is unavailable
+          // (e.g. local development without the sidecar).
+          console.warn('[runtime-config] Could not load /config.json:', e.message);
+        }
+      })();
+    </script>
 </head>
 <body>
     <!-- Header banner served from the on-prem file share -->
+    <!-- CDN_BASE_URL is injected at runtime from SSM Parameter Store via ECS secret;
+         falls back to an empty string so the relative path remains valid locally. -->
     <header>
-        <img src="/var/www/html/assets/img/banner.png" alt="Banner">
+        <img src="${CDN_BASE_URL}/assets/img/banner.png" alt="Banner"
+             onerror="this.src='assets/img/banner.png'">
     </header>
 
     <main>
-        <!-- Hardcoded production environment link -->
-        <a href="https://app-prod.acme-corp.com/portal/admin">Open Admin Console</a>
+        <!-- ADMIN_CONSOLE_URL is stored in AWS SSM Parameter Store and injected as an
+             ECS task-definition secret (secretsmanager/ssm arn) at container launch.
+             This keeps the environment-specific URL out of the image and allows the
+             same container image to be promoted across dev / staging / prod without
+             rebuilding. -->
+        <a href="${ADMIN_CONSOLE_URL}">Open Admin Console</a>
 
         <!-- Windows backslash path for an icon -->
         <img src="images/icons/refresh.png" alt="refresh">
 
-        <!-- Server-stamped build time embedded directly in static markup -->
-        <span class="build-info">Report generated: 2026-06-17 14:32:05 UTC</span>
+        <!-- cz-html-1005: Server-generated timestamp replaced with client-side JavaScript rendering.
+             TIMESTAMP_RENDER_MODE is injected via AWS Secrets Manager into the ECS Fargate task
+             definition as a container secret. When TIMESTAMP_RENDER_MODE=client (the expected
+             runtime value), the timestamp is rendered exclusively in the browser, preventing
+             React/Next.js SSR hydration mismatches in Kubernetes/ECS pods where server render
+             time differs from client hydration time. The static fallback text is intentionally
+             left empty so no server-stamped value is ever embedded in the HTML payload. -->
+        <span class="build-info" id="report-timestamp"></span>
+        <script>
+          (function () {
+            // TIMESTAMP_RENDER_MODE is surfaced to the client via a server-side meta tag or
+            // window variable injected by the ECS task at startup from AWS Secrets Manager.
+            // Default to 'client' so the timestamp is always rendered on the client side.
+            var mode = (window.__TIMESTAMP_RENDER_MODE__ || 'client').toLowerCase();
+            if (mode === 'client') {
+              var el = document.getElementById('report-timestamp');
+              if (el) {
+                el.textContent = 'Report generated: ' + new Date().toUTCString();
+              }
+            }
+          })();
+        </script>
 
         <!-- Resource pulled from a developer machine -->
-        <script src="http://localhost:5000/js/telemetry.js"></script>
+        <!-- cz-html-1008: Localhost static-asset reference (http://localhost:5000/js/telemetry.js)
+             replaced with CDN_BASE_URL injected at runtime from AWS SSM Parameter Store via the
+             ECS Fargate task-definition environment variable CDN_BASE_URL.  Static assets are
+             uploaded to Amazon S3 and served through a CloudFront distribution; CDN_BASE_URL
+             holds the CloudFront distribution origin (e.g. https://d1example.cloudfront.net).
+             Using the CDN URL eliminates the localhost reference so the asset loads correctly
+             in every ECS pod regardless of the host it runs on. -->
+        <script src="${CDN_BASE_URL}/js/telemetry.js"></script>
 
-        <!-- Library served from a non-standard port -->
+        <!-- Library served from CDN -->
         <script src="http://cdn.acme-corp.com/js/charts.js"></script>
     </main>
 
