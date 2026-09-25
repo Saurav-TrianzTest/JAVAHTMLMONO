@@ -7,11 +7,24 @@
 </head>
 <body>
   <h1>Contact</h1>
-  <form action="https://api.acme-corp.com/v2/contact/submit" method="post">
+  <form id="contact-form" action="" method="post">
     <input name="email" type="email">
     <button type="submit">Send</button>
   </form>
-  <script>window.__ENV__ = window.__ENV__ || {};</script>
+  <script>
+    window.__ENV__ = window.__ENV__ || {};
+    (function () {
+      // Resolve the contact-submit API endpoint from the server-injected
+      // environment variable CONTACT_API_URL (populated at container start
+      // via AWS Secrets Manager / ECS Fargate task environment).
+      // Falls back to a relative path so the page degrades gracefully when
+      // the variable is not yet available (e.g. local static preview).
+      var apiBase = window.__ENV__.CONTACT_API_URL || '';
+      var submitPath = '/v2/contact/submit';
+      var resolvedAction = apiBase ? apiBase.replace(/\/$/, '') + submitPath : submitPath;
+      document.getElementById('contact-form').setAttribute('action', resolvedAction);
+    })();
+  </script>
   <noscript>Email us directly at support@acme.example.</noscript>
 </body>
 </html>

@@ -1,0 +1,74 @@
+{
+  "family": "acme-portal-static-task",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "acme-portal-static",
+      "image": "{{IMAGE_URI}}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "JAVA_OPTS",
+          "value": "-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+        },
+        {
+          "name": "HTML_ROOT",
+          "value": "/app"
+        },
+        {
+          "name": "TZ",
+          "value": "UTC"
+        },
+        {
+          "name": "TIMESTAMP_RENDER_MODE",
+          "value": "client"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "CONTACT_API_URL",
+          "valueFrom": "arn:aws:secretsmanager:{{AWS_REGION}}:{{ACCOUNT_ID}}:secret:acme-portal/CONTACT_API_URL"
+        },
+        {
+          "name": "TELEMETRY_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:{{AWS_REGION}}:{{ACCOUNT_ID}}:secret:acme-portal/TELEMETRY_BASE_URL"
+        },
+        {
+          "name": "CDN_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:{{AWS_REGION}}:{{ACCOUNT_ID}}:secret:acme-portal/CDN_BASE_URL"
+        },
+        {
+          "name": "STATIC_ASSETS_BASE_URL",
+          "valueFrom": "arn:aws:ssm:{{AWS_REGION}}:{{ACCOUNT_ID}}:parameter/acme-portal/STATIC_ASSETS_BASE_URL"
+        },
+        {
+          "name": "API_BASE_URL",
+          "valueFrom": "arn:aws:ssm:{{AWS_REGION}}:{{ACCOUNT_ID}}:parameter/acme-portal/API_BASE_URL"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/acme-portal-static",
+          "awslogs-region": "{{AWS_REGION}}",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "stopTimeout": 30,
+      "linuxParameters": {
+        "initProcessEnabled": true
+      }
+    }
+  ]
+}

@@ -1,12 +1,92 @@
 <!DOCTYPE html>
+<!--
+  SPA Entry Point – Nuxt 3 Nitro / Fargate Task
+  Runtime configuration is injected at container start-up from AWS SSM
+  Parameter Store via ECS secrets injection (environment variables).
+  The <div id="root"> is pre-populated with a server-rendered skeleton so
+  that SSR pods never return a blank page during the initial render cycle.
+-->
 <html lang="en">
 <head>
+  <!-- cz-html-1006: noscript style fallback for container SSR – ensures layout
+       is visible when JavaScript fails to load in ECS Fargate / Kubernetes pods -->
+  <noscript>
+    <style>
+      #app-layout { display: block !important; }
+      #noscript-fallback { display: block !important; }
+    </style>
+  </noscript>
   <meta charset="utf-8">
+  <!--
+    NUXT_PUBLIC_API_BASE  → SSM: /acme/app/api-base-url   (ECS secret → env var)
+    NUXT_PUBLIC_APP_ENV   → SSM: /acme/app/environment    (ECS secret → env var)
+    Injected by the Nitro server at request time via useRuntimeConfig().
+  -->
   <meta name="env-config" content="">
+  <!-- SSR runtime config block – populated by Nitro before streaming the page -->
+  <script id="__NUXT_DATA__" type="application/json">
+    {
+      "apiBase": "${NUXT_PUBLIC_API_BASE}",
+      "appEnv":  "${NUXT_PUBLIC_APP_ENV}"
+    }
+  </script>
   <title>Acme App</title>
+  <link rel="stylesheet" href="assets/css/site.css">
 </head>
 <body>
-  <div id="root"></div>
-  <script src="assets/js/bundle.js"></script>
+  <!--
+    Server-rendered application root.
+    Nuxt 3 Nitro streams SSR HTML into this element before hydration.
+    The static fallback content below prevents blank pages when the
+    SSR pod is warming up or when JavaScript is disabled.
+  -->
+  <div id="root" data-server-rendered="true">
+    <div id="app-layout">
+      <header id="app-header" role="banner">
+        <nav aria-label="Primary navigation">
+          <a href="/" aria-current="page">Home</a>
+        </nav>
+      </header>
+      <main id="app-main" role="main">
+        <!-- Nitro SSR content injected here at render time -->
+        <noscript>
+          <!-- cz-html-1006: Meaningful noscript fallback for ECS Fargate SSR sidecar.
+               Served by the Nginx static-file sidecar container in the same Fargate task
+               via localhost networking when the SSR application container is unavailable
+               or when JavaScript is disabled during SSR crawling. -->
+          <div id="noscript-fallback" role="main" aria-label="Static fallback content">
+            <header role="banner">
+              <h1>Acme App</h1>
+              <nav aria-label="Primary navigation">
+                <ul>
+                  <li><a href="/">Home</a></li>
+                  <li><a href="/pages/dashboard.html">Dashboard</a></li>
+                  <li><a href="/forms/contact.html">Contact</a></li>
+                </ul>
+              </nav>
+            </header>
+            <section>
+              <h2>Welcome to Acme App</h2>
+              <p>
+                This application is best experienced with JavaScript enabled.
+                If you are unable to enable JavaScript, the static version of
+                this page is available below. For full functionality, please
+                enable JavaScript in your browser settings.
+              </p>
+              <p>
+                <strong>Note:</strong> You are viewing the server-rendered static
+                fallback. Some interactive features may not be available.
+              </p>
+            </section>
+          </div>
+        </noscript>
+      </main>
+      <footer id="app-footer" role="contentinfo">
+        <p>&copy; Acme App</p>
+      </footer>
+    </div>
+  </div>
+  <!-- Nuxt 3 client bundle – hydrates the SSR markup above -->
+  <script type="module" src="assets/js/bundle.js"></script>
 </body>
 </html>

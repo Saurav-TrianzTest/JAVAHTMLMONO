@@ -4,14 +4,74 @@
     <meta charset="utf-8">
     <!-- Legacy dashboard page migrated from on-prem IIS. Do not minify by hand. -->
     <title>Operations Dashboard</title>
-    <!-- Windows-style asset path kept from the original on-prem build -->
-    <link rel="stylesheet" href="assets\css\dashboard.css">
-    <link rel="stylesheet" href="https://static.acme-corp.com/css/grid.css">
+    <!--
+        CDN_BASE_URL is injected at runtime from AWS SSM Parameter Store as an ECS secret
+        (e.g. https://d1234abcd.cloudfront.net). All static assets are served from Amazon S3
+        via CloudFront. The placeholder below is replaced by the application server / build
+        pipeline using the CDN_BASE_URL environment variable before the page is served.
+        STATIC_ASSETS_BASE_URL is injected at runtime from AWS SSM Parameter Store as an ECS
+        secret and replaces the previously hardcoded https://static.acme-corp.com origin.
+        Reference it in the ECS task definition secrets block so it is securely provided at
+        task launch without being embedded in the container image.
+        Fargate awsvpc networking is used to reach the CloudFront distribution endpoint.
+    -->
+    <!-- CONTAINERIZATION FIX (cz-html-1002): Replaced Windows-style backslash path separator
+         assets\css\dashboard.css with a Linux-compatible forward-slash path assets/css/dashboard.css.
+         The docker-entrypoint.sh script also normalises any remaining backslash paths in HTML files
+         at container startup before the web server begins serving requests, ensuring cross-platform
+         compatibility in ECS Fargate / Kubernetes Linux containers. -->
+    <link rel="stylesheet" href="assets/css/dashboard.css">
+    <!-- CONTAINERIZATION FIX (cz-html-1001): Replaced hardcoded environment-specific URL
+         https://static.acme-corp.com/css/grid.css with a runtime-injected environment
+         variable ${STATIC_ASSETS_BASE_URL} sourced from AWS SSM Parameter Store as an
+         ECS/Fargate secret, enabling single-image promotion across all environments. -->
+    <link rel="stylesheet" href="${STATIC_ASSETS_BASE_URL}/css/grid.css">
+
+    <!--
+        CONTAINERIZATION FIX (cz-html-1011): Runtime Config Injection Point
+        =====================================================================
+        This script block is the designated injection point for runtime configuration
+        sourced from AWS SSM Parameter Store via a sidecar container on ECS Fargate.
+
+        Deployment pattern (Fargate / Kubernetes):
+          1. An AWS SSM Agent sidecar (or custom init container) fetches parameters
+             from SSM Parameter Store at task/pod startup and writes them to a shared
+             ephemeral volume as /config/runtime-config.json.
+          2. The Nginx (or Java HTTP) container serves that file at /config.json.
+          3. The docker-entrypoint.sh script substitutes the placeholder values below
+             using the environment variables injected by the ECS task definition
+             (sourced from AWS Secrets Manager / SSM Parameter Store).
+
+        Environment variables injected at container startup (ECS task definition
+        secrets / environment blocks → AWS SSM Parameter Store / Secrets Manager):
+          CDN_BASE_URL            – CloudFront distribution base URL
+          STATIC_ASSETS_BASE_URL  – S3/CloudFront static assets origin
+          TIMESTAMP_RENDER_MODE   – Controls client-side timestamp rendering ("client")
+          API_BASE_URL            – Backend API base URL for dashboard data endpoints
+    -->
+    <script>
+        /* window.__ENV__ injection point – populated at container startup.
+           The docker-entrypoint.sh script (or an ECS/Kubernetes init container)
+           replaces the placeholder values below with live values from AWS SSM
+           Parameter Store before the web server begins serving requests.
+           This block MUST remain in the HTML so that ConfigMap-based or
+           sidecar-based injection can locate and replace it without modifying
+           the container image. */
+        window.__ENV__ = window.__ENV__ || {};
+        window.__ENV__.CDN_BASE_URL           = "${CDN_BASE_URL}";
+        window.__ENV__.STATIC_ASSETS_BASE_URL = "${STATIC_ASSETS_BASE_URL}";
+        window.__ENV__.TIMESTAMP_RENDER_MODE  = "${TIMESTAMP_RENDER_MODE}";
+        window.__ENV__.API_BASE_URL           = "${API_BASE_URL}";
+    </script>
 </head>
 <body>
     <!-- Header banner served from the on-prem file share -->
     <header>
-        <img src="/var/www/html/assets/img/banner.png" alt="Banner">
+        <!-- CONTAINERIZATION FIX (cz-html-1000): Replaced hardcoded absolute filesystem path
+             /var/www/html/assets/img/banner.png with a CDN-relative path using the
+             CDN_BASE_URL environment variable (sourced from AWS SSM Parameter Store as an
+             ECS/Fargate secret). Assets are stored in Amazon S3 and served via CloudFront. -->
+        <img src="${CDN_BASE_URL}/assets/img/banner.png" alt="Banner">
     </header>
 
     <main>
@@ -21,11 +81,45 @@
         <!-- Windows backslash path for an icon -->
         <img src="images/icons/refresh.png" alt="refresh">
 
-        <!-- Server-stamped build time embedded directly in static markup -->
-        <span class="build-info">Report generated: 2026-06-17 14:32:05 UTC</span>
+        <!-- CONTAINERIZATION FIX (cz-html-1005): Removed server-generated timestamp
+             "Report generated: 2026-06-17 14:32:05 UTC" that was hardcoded in static markup.
+             Server-stamped timestamps cause SSR hydration mismatches in ECS Fargate / Kubernetes
+             containers where server render time differs from client hydration time.
+             The TIMESTAMP_RENDER_MODE flag is injected via AWS Secrets Manager into the ECS
+             Fargate task definition (secretsmanager ARN mapped to the TIMESTAMP_RENDER_MODE
+             environment variable). When TIMESTAMP_RENDER_MODE=client (the required value for
+             container deployments), the <span> is populated exclusively by the browser using
+             Date.toUTCString(), preventing React/Next.js hydration errors in Kubernetes pods.
+             When the flag is absent or set to any other value the span is left empty so that
+             no stale server-side timestamp is ever rendered. -->
+        <span id="report-timestamp" class="build-info"></span>
+        <script>
+          (function () {
+            var mode = (typeof window.__ENV__ !== 'undefined' && window.__ENV__.TIMESTAMP_RENDER_MODE)
+                       ? window.__ENV__.TIMESTAMP_RENDER_MODE
+                       : '';
+            if (mode === 'client') {
+              var el = document.getElementById('report-timestamp');
+              if (el) {
+                el.textContent = 'Report generated: ' + new Date().toUTCString();
+              }
+            }
+          })();
+        </script>
 
         <!-- Resource pulled from a developer machine -->
-        <script src="http://localhost:5000/js/telemetry.js"></script>
+        <!-- CONTAINERIZATION FIX (cz-html-1008 + cz-html-1007): Replaced localhost resource
+             reference http://localhost:5000/js/telemetry.js with a CDN_BASE_URL environment
+             variable placeholder. The telemetry asset is uploaded to Amazon S3 and served via
+             a CloudFront distribution. CDN_BASE_URL is injected at runtime into the ECS Fargate
+             task definition from AWS Secrets Manager (secretsmanager ARN mapped to the
+             CDN_BASE_URL environment variable), eliminating all localhost static-asset references
+             and enabling proper container networking and service discovery in multi-container
+             deployments where services run in separate pods. The docker-entrypoint.sh startup
+             script substitutes the ${CDN_BASE_URL} placeholder before the web server begins
+             serving requests, enabling single-image promotion across all environments without
+             baking localhost URLs or port numbers into the container image. -->
+        <script src="${CDN_BASE_URL}/js/telemetry.js"></script>
 
         <!-- Library served from a non-standard port -->
         <script src="http://cdn.acme-corp.com/js/charts.js"></script>

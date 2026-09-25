@@ -1,0 +1,71 @@
+# =============================================================================
+# .dockerignore – acme-portal-static (JAVAHTMLMONO)
+# =============================================================================
+# CONTAINERIZATION FIX (cz-html-1012): Exclude build artifacts and source maps
+# CONTAINERIZATION FIX (cz-html-1010): Exclude development/test HTML files
+# =============================================================================
+
+# ── Maven build output (handled by multi-stage build) ────────────────────────
+target/
+
+# ── Maven wrapper files (NEVER used in Docker – system mvn is used instead) ──
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Gradle wrapper files (excluded for completeness) ─────────────────────────
+gradlew
+gradlew.bat
+gradle/
+gradle/wrapper/
+
+# ── Development & test HTML files (cz-html-1010) ─────────────────────────────
+test.html
+*.test.html
+*.dev.html
+index.dev.html
+debug.html
+debug-*.html
+*-debug.html
+*.debug.html
+
+# ── Build artifacts: source maps, build logs, build-info (cz-html-1012) ──────
+*.map
+**/*.map
+assets/js/*.map
+assets/css/*.map
+build-info.html
+*.build.log
+build.log
+
+# ── Git metadata ──────────────────────────────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / editor artefacts ────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── Local development configuration ──────────────────────────────────────────
+*.env
+.env
+.env.*
+docker-compose*.yml
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+*.md
+docs/
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Scripts directory (not needed in image) ───────────────────────────────────
+scripts/
+
+# ── ECS manifests (not needed in image) ──────────────────────────────────────
+ecs/

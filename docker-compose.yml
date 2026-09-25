@@ -1,0 +1,63 @@
+version: "3.9"
+
+# =============================================================================
+# docker-compose.yml – acme-portal-static (JAVAHTMLMONO)
+# Application-only service definition (no infrastructure services)
+# External services (APIs, CDN, etc.) are provided via environment variables
+# =============================================================================
+
+services:
+  acme-portal-static:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: acme-portal-static:latest
+    container_name: acme-portal-static
+    ports:
+      - "8080:8080"
+    environment:
+      # JVM memory settings
+      JAVA_OPTS: "-Xmx512m -Xms256m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
+      # HTML root for entrypoint path normalisation
+      HTML_ROOT: "/app"
+      # Timezone
+      TZ: "UTC"
+      # Runtime-injected environment variables (populate from .env file or secrets manager)
+      # CONTAINERIZATION FIX (cz-html-1007): Telemetry base URL (replaces hardcoded :5000 port)
+      TELEMETRY_BASE_URL: "${TELEMETRY_BASE_URL:-}"
+      # CONTAINERIZATION FIX (cz-html-1008): CDN base URL for static assets via CloudFront
+      CDN_BASE_URL: "${CDN_BASE_URL:-}"
+      # CONTAINERIZATION FIX (cz-html-1011): Static assets and API base URLs
+      STATIC_ASSETS_BASE_URL: "${STATIC_ASSETS_BASE_URL:-}"
+      API_BASE_URL: "${API_BASE_URL:-}"
+      # Contact form API endpoint (injected from AWS Secrets Manager in ECS)
+      CONTACT_API_URL: "${CONTACT_API_URL:-}"
+      # Timestamp rendering mode (injected from AWS Secrets Manager in ECS)
+      TIMESTAMP_RENDER_MODE: "${TIMESTAMP_RENDER_MODE:-client}"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: "1024M"
+        reservations:
+          cpus: "0.25"
+          memory: "512M"
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local

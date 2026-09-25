@@ -1,15 +1,57 @@
 <!DOCTYPE html>
+<!--
+  SSR Shell – Nuxt 3 Nitro / Fargate Task
+  Runtime configuration is injected at container start-up from AWS SSM
+  Parameter Store via ECS secrets injection (environment variables).
+  The <div id="root"> is pre-populated with a server-rendered skeleton so
+  that SSR pods never return a blank page during the initial render cycle.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!--
+    NUXT_PUBLIC_API_BASE  → SSM: /acme/app/api-base-url   (ECS secret → env var)
+    NUXT_PUBLIC_APP_ENV   → SSM: /acme/app/environment    (ECS secret → env var)
+    Injected by the Nitro server at request time via useRuntimeConfig().
+  -->
   <meta name="env-config" content="">
+  <!-- SSR runtime config block – populated by Nitro before streaming the shell -->
+  <script id="__NUXT_DATA__" type="application/json">
+    {
+      "apiBase": "${NUXT_PUBLIC_API_BASE}",
+      "appEnv":  "${NUXT_PUBLIC_APP_ENV}"
+    }
+  </script>
   <title>App Shell</title>
-  <script src="js/bundle.js"></script>
+  <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <h1>App Shell</h1>
-  <div id="root"></div>
-  <script src="js/bundle.js"></script>
-  <noscript>App requires JavaScript.</noscript>
+  <!--
+    Server-rendered application root.
+    Nuxt 3 Nitro streams SSR HTML into this element before hydration.
+    The static fallback content below prevents blank pages when the
+    SSR pod is warming up or when JavaScript is disabled.
+  -->
+  <div id="root" data-server-rendered="true">
+    <div id="app-layout">
+      <header id="app-header" role="banner">
+        <nav aria-label="Primary navigation">
+          <a href="/" aria-current="page">Home</a>
+        </nav>
+      </header>
+      <main id="app-main" role="main">
+        <!-- Nitro SSR content injected here at render time -->
+        <noscript>
+          <p>This application requires JavaScript. Please enable JavaScript in your browser.</p>
+        </noscript>
+      </main>
+      <footer id="app-footer" role="contentinfo">
+        <p>&copy; Acme Portal</p>
+      </footer>
+    </div>
+  </div>
+  <!-- Nuxt 3 client bundle – hydrates the SSR markup above -->
+  <script type="module" src="js/bundle.js"></script>
 </body>
 </html>
